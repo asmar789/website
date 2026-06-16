@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport"/>
+    <title>VIP Transfer | Lüks ve Güvenilir Ulaşım</title>
+    
+    <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;900&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"/>
+    
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <script id="tailwind-config">
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        "vip-bg": "#F8F9FA",
+                        "vip-card": "#FFFFFF",
+                        "vip-dark": "#1E2229",
+                        "vip-gold": "#C5A880",
+                        "vip-gold-dark": "#A88F6B",
+                        "vip-muted": "#6C757D"
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        montserrat: ['Montserrat', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #F8F9FA; color: #1E2229; -webkit-tap-highlight-color: transparent; }
+        .premium-shadow { box-shadow: 0 10px 30px rgba(0,0,0,0.04); }
+        .mobile-touch-active:active { transform: scale(0.97); opacity: 0.95; }
+        .hero-section {
+            /* Yüklediğiniz görsel arka plan yapıldı */
+            background-image: url('1000038125.jpg');
+            background-size: cover;
+            background-position: center center;
+            background-repeat: no-repeat;
+            position: relative;
+        }
+        .hero-section::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            /* Metin okunabilirliği için hafif koyu overlay eklendi */
+            background: linear-gradient(to bottom, rgba(30,34,41,0.6) 0%, rgba(30,34,41,0.7) 50%, rgba(30,34,41,0.85) 100%);
+            pointer-events: none;
+            z-index: 0;
+        }
+        .hero-section > * { position: relative; z-index: 1; }
+        .page-bg { background-color: #F8F9FA; }
+    </style>
+</head>
+<body class="font-sans antialiased select-none md:select-text page-bg">
+<div id="root"></div>
+
+<script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+    import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+    import { getFirestore, doc, setDoc, collection, onSnapshot, addDoc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+    const firebaseConfig = {
+        apiKey: "AIzaSyC8JHwiUcHlJpoiFewsaCzSBRS8SFU-A48",
+        authDomain: "viptransfer-65c5e.firebaseapp.com",
+        projectId: "viptransfer-65c5e",
+        storageBucket: "viptransfer-65c5e.firebasestorage.app",
+        messagingSenderId: "279013861180",
+        appId: "1:279013861180:web:2193543a98d147a1e42039",
+        measurementId: "G-24V8G9KF3B"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const db = getFirestore(app);
+    window.FirebaseBridge = { auth, db, signInWithEmailAndPassword, signOut, onAuthStateChanged, doc, setDoc, collection, onSnapshot, addDoc, updateDoc, deleteDoc };
+</script>
+
+<script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    function App() {
+        const [view, setView] = useState('home');
+        const [user, setUser] = useState(null);
+        const [vehicles, setVehicles] = useState([]);
+        const [settings, setSettings] = useState({ phone: '0544 518 73 99', whatsapp: '0544 518 73 99' });
+        const [loading, setLoading] = useState(true);
+
+        const [loginEmail, setLoginEmail] = useState('');
+        const [loginPassword, setLoginPassword] = useState('');
+        const [loginError, setLoginError] = useState('');
+
+        const [editingVehicle, setEditingVehicle] = useState(null);
+        const [vehName, setVehName] = useState('');
+        const [vehImg, setVehImg] = useState('');
+        const [vehDesc, setVehDesc] = useState('');
+        const [vehFile, setVehFile] = useState(null);
+        const [uploading, setUploading] = useState(false);
+
+
+
+        useEffect(() => {
+            const handleHashChange = () => {
+                if (window.location.hash === '#/admin') {
+                    if (user) setView('admin-panel');
+                    else setView('admin-login');
+                } else {
+                    setView('home');
+                }
+            };
+            window.addEventListener('hashchange', handleHashChange);
+            handleHashChange();
+            return () => window.removeEventListener('hashchange', handleHashChange);
+        }, [user]);
+
+        useEffect(() => {
+            const check = setInterval(() => {
+                if (window.FirebaseBridge) {
+                    clearInterval(check);
+                    const { auth, db, onAuthStateChanged, collection, onSnapshot, doc } = window.FirebaseBridge;
+
+                    onAuthStateChanged(auth, (u) => {
+                        if (u && u.email.includes('@admin')) {
+                            setUser(u);
+                            if (window.location.hash === '#/admin') setView('admin-panel');
+                        } else {
+                            setUser(null);
+                            if (window.location.hash === '#/admin') setView('admin-login');
+                        }
+                    });
+
+                    onSnapshot(collection(db, "vehicles"), (snap) => {
+                        const list = [];
+                        snap.forEach(d => list.push({ id: d.id, ...d.data() }));
+                        setVehicles(list);
+                    });
+
+                    onSnapshot(doc(db, "settings", "contact"), (d) => {
+                        if (d.exists()) setSettings(d.data());
+                    });
+
+
+
+                    setLoading(false);
+                }
+            }, 100);
+        }, []);
+
+        // Araç fotoğrafı — önizleme için
+        const handleVehFileChange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            setVehFile(file);
+            const reader = new FileReader();
+            reader.onloadend = () => setVehImg(reader.result);
+            reader.readAsDataURL(file);
+        };
+
+
+
+
+        const handleLogin = async (e) => {
+            e.preventDefault();
+            setLoginError('');
+            try {
+                const { auth, signInWithEmailAndPassword } = window.FirebaseBridge;
+                await signInWithEmailAndPassword(auth, loginEmail.trim().toLowerCase(), loginPassword);
+            } catch (err) {
+                setLoginError('Hatalı e-posta veya şifre.');
+            }
+        };
+
+        const handleLogout = async () => {
+            const { auth, signOut } = window.FirebaseBridge;
+            await signOut(auth);
+            window.location.hash = '';
+            setView('home');
+        };
+
+        // Araç kaydet — Base64 ile kaydet
+        const saveVehicle = async (e) => {
+            e.preventDefault();
+            if (!vehFile && !editingVehicle?.image && !vehImg) {
+                alert('Lütfen araç için bir fotoğraf yükleyin!');
+                return;
+            }
+            setUploading(true);
+            try {
+                const { db, collection, addDoc, doc, updateDoc } = window.FirebaseBridge;
+                let imageUrl = vehImg || editingVehicle?.image || '';
+
+                const data = { name: vehName, image: imageUrl, description: vehDesc };
+                if (editingVehicle) {
+                    await updateDoc(doc(db, "vehicles", editingVehicle.id), data);
+                    setEditingVehicle(null);
+                } else {
+                    await addDoc(collection(db, "vehicles"), data);
+                }
+                setVehName(''); setVehImg(''); setVehDesc(''); setVehFile(null);
+            } catch (err) {
+                console.error('Araç yükleme hatası:', err);
+                alert('HATA: ' + err.code + '\n' + err.message);
+            }
+            setUploading(false);
+        };
+
+        const deleteVehicle = async (id) => {
+            if (confirm('Bu aracı silmek istediğinize emin misiniz?')) {
+                const { db, doc, deleteDoc } = window.FirebaseBridge;
+                await deleteDoc(doc(db, "vehicles", id));
+            }
+        };
+
+        const saveContact = async (e) => {
+            e.preventDefault();
+            const { db, doc, setDoc } = window.FirebaseBridge;
+            await setDoc(doc(db, "settings", "contact"), settings);
+            alert('Numaralar başarıyla güncellendi!');
+        };
+
+        const getCleanNumber = (num) => {
+            let f = num.replace(/\s+/g, '');
+            if (!f.startsWith('+') && !f.startsWith('00')) {
+                if (f.startsWith('0')) f = '+90' + f.substring(1);
+                else if (!f.startsWith('90')) f = '+90' + f;
+                else f = '+' + f;
+            }
+            return f;
+        };
+
+        const cleanPhone = getCleanNumber(settings.phone);
+        const cleanWhatsapp = getCleanNumber(settings.whatsapp).replace('+', '');
+
+
+        const services = [
+            { icon: "fa-plane-departure", title: "Havalimanı Transfer", desc: "Geliş ve gidiş saatlerinize göre planlanan, bagaj yardım hizmeti dahil konforlu havalimanı ulaşımı." },
+            { icon: "fa-hotel", title: "Otel & Şehir İçi Transfer", desc: "Havaalanından otelinize veya şehir içinde dilediğiniz noktaya ultra konforlu VIP ulaşım çözümleri." },
+            { icon: "fa-map-location-dot", title: "Şehirler Arası Transfer", desc: "Uzun mesafeli yolculuklarınızı yorucu olmaktan çıkaran, business class konforunda seyahat." },
+            { icon: "fa-user-tie", title: "Şoförlü Araç Kiralama", desc: "İş toplantılarınız, özel günleriniz veya günlük planlarınız için tahsis edilen profesyonel şoför hizmeti." },
+            { icon: "fa-business-time", title: "Kurumsal Ulaşım", desc: "Şirket misafirleriniz ve iş ortaklarınız için firmanızın prestijine yakışır karşılama ve transfer." },
+            { icon: "fa-suitcase-rolling", title: "Geziler & Etkinlikler", desc: "Düğün, nişan, konser veya turistik gezileriniz için gruplara özel VIP Sprinter araç seçenekleri." }
+        ];
+
+        const displayVehicles = vehicles;
+
+        if (loading) return (
+            <div className="min-h-screen flex items-center justify-center" style={{backgroundColor:'#F8F9FA'}}>
+                <div className="text-center">
+                    <i className="fa-solid fa-circle-notch animate-spin text-3xl" style={{color:'#C5A880'}}></i>
+                    <p className="font-montserrat tracking-widest text-xs mt-3" style={{color:'#6C757D'}}>YÜKLENİYOR...</p>
+                </div>
+            </div>
+        );
+
+        // ── ADMİN GİRİŞ ──
+        if (view === 'admin-login') {
+            return (
+                <div className="min-h-screen flex items-center justify-center p-4"
+                    style={{backgroundColor:'#F8F9FA'}}>
+                    <div className="w-full max-w-md bg-vip-card rounded-2xl p-8 border border-neutral-200/60 premium-shadow">
+                        <h2 className="text-xl font-bold font-montserrat text-center text-vip-dark tracking-wide mb-6">YÖNETİCİ GİRİŞİ</h2>
+                        {loginError && <div className="bg-red-50 border border-red-200 text-red-600 p-3 rounded-xl text-xs text-center mb-4">{loginError}</div>}
+                        <form onSubmit={handleLogin} className="space-y-4">
+                            <input type="email" required className="w-full bg-vip-bg border border-neutral-200 rounded-xl px-4 py-3.5 text-sm" placeholder="E-Posta" value={loginEmail} onChange={e=>setLoginEmail(e.target.value)}/>
+                            <input type="password" required className="w-full bg-vip-bg border border-neutral-200 rounded-xl px-4 py-3.5 text-sm" placeholder="Şifre" value={loginPassword} onChange={e=>setLoginPassword(e.target.value)}/>
+                            <button type="submit" className="w-full bg-vip-dark text-white font-bold py-3.5 rounded-xl text-xs font-montserrat tracking-wider uppercase mobile-touch-active">GİRİŞ YAP</button>
+                        </form>
+                    </div>
+                </div>
+            );
+        }
+
+        // ── ADMİN PANELİ ──
+        if (view === 'admin-panel') {
+            return (
+                <div className="min-h-screen flex flex-col pb-4" style={{backgroundColor:'#F8F9FA'}}>
+                    <header className="bg-vip-card border-b border-neutral-200/60 py-4 px-6 flex justify-between items-center premium-shadow">
+                        <div>
+                            <h1 className="text-base font-bold font-montserrat text-vip-dark">VIP YÖNETİM PANELİ</h1>
+                            <p className="text-[11px] text-vip-muted">{user?.email}</p>
+                        </div>
+                        <button onClick={handleLogout} className="bg-red-50 text-red-600 border border-red-200 text-xs font-bold px-4 py-2 rounded-xl">ÇIKIŞ YAP</button>
+                    </header>
+
+                    <div className="flex-1 max-w-6xl w-full mx-auto p-4 grid grid-cols-1 md:grid-cols-3 gap-6">
+
+                        {/* SOL */}
+                        <div className="space-y-6">
+
+                            {/* YENİ ARAÇ */}
+                            <div className="bg-vip-card rounded-2xl p-6 border border-neutral-200/60 premium-shadow">
+                                <h3 className="text-xs font-bold font-montserrat text-vip-dark uppercase border-b border-neutral-100 pb-3 mb-4">
+                                    {editingVehicle ? 'Aracı Düzenle' : 'Yeni Araç Ekle'}
+                                </h3>
+                                <form onSubmit={saveVehicle} className="space-y-4">
+                                    <input type="text" required className="w-full bg-vip-bg border border-neutral-200 text-sm rounded-xl px-4 py-2.5" placeholder="Araç Adı" value={vehName} onChange={e=>setVehName(e.target.value)}/>
+                                    <div className="space-y-2">
+                                        <label className="block text-[11px] text-vip-muted uppercase font-bold tracking-wider">Araç Fotoğrafı</label>
+                                        <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-neutral-200 border-dashed rounded-xl cursor-pointer bg-vip-bg hover:border-vip-gold transition-colors overflow-hidden p-1">
+                                            {vehImg
+                                                ? <img src={vehImg} className="w-full h-full object-cover rounded-lg"/>
+                                                : <div className="flex flex-col items-center text-center">
+                                                    <i className="fa-solid fa-image text-xl mb-1" style={{color:'#C5A880'}}></i>
+                                                    <p className="text-xs font-medium text-vip-dark">Fotoğraf Seç</p>
+                                                  </div>
+                                            }
+                                            <input type="file" accept="image/*" className="hidden" onChange={handleVehFileChange}/>
+                                        </label>
+                                        {vehFile && <p className="text-[10px] text-green-600 font-medium">✓ {vehFile.name}</p>}
+                                    </div>
+                                    <textarea required rows="4" className="w-full bg-vip-bg border border-neutral-200 text-sm rounded-xl px-4 py-2.5" placeholder="Özellikler (Her satıra bir özellik yazın)" value={vehDesc} onChange={e=>setVehDesc(e.target.value)}></textarea>
+                                    <button type="submit" disabled={uploading} className="w-full bg-vip-dark text-white text-xs font-bold py-3 rounded-xl uppercase tracking-wider mobile-touch-active disabled:opacity-60">
+                                        {uploading ? <span><i className="fa-solid fa-spinner animate-spin mr-2"></i>YÜKLENİYOR...</span> : 'KAYDET'}
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+
+                        {/* SAĞ */}
+                        <div className="md:col-span-2 space-y-6">
+                            <div className="bg-vip-card rounded-2xl p-6 border border-neutral-200/60 premium-shadow">
+                                <h3 className="text-xs font-bold font-montserrat text-vip-dark uppercase border-b border-neutral-100 pb-3 mb-4">İletişim Numaraları</h3>
+                                <form onSubmit={saveContact} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-[10px] uppercase font-bold text-vip-muted mb-1">Telefon</label>
+                                        <input type="text" className="w-full bg-vip-bg border border-neutral-200 text-sm rounded-xl px-4 py-2.5" value={settings.phone} onChange={e=>setSettings({...settings,phone:e.target.value})}/>
+                                    </div>
+                                    <div>
+                                        <label className="block text-[10px] uppercase font-bold text-vip-muted mb-1">WhatsApp</label>
+                                        <input type="text" className="w-full bg-vip-bg border border-neutral-200 text-sm rounded-xl px-4 py-2.5" value={settings.whatsapp} onChange={e=>setSettings({...settings,whatsapp:e.target.value})}/>
+                                    </div>
+                                    <button type="submit" className="sm:col-span-2 bg-vip-gold text-white text-xs font-bold py-2.5 px-4 rounded-xl uppercase mobile-touch-active">NUMARALARI GÜNCELLE</button>
+                                </form>
+                            </div>
+
+                            <div className="bg-vip-card rounded-2xl p-6 border border-neutral-200/60 premium-shadow">
+                                <h3 className="text-xs font-bold font-montserrat text-vip-dark uppercase border-b border-neutral-100 pb-3 mb-4">Kayıtlı Araç Filosu ({vehicles.length})</h3>
+                                <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                                    {vehicles.map(v => (
+                                        <div key={v.id} className="flex items-center gap-4 bg-vip-bg p-3 rounded-xl border border-neutral-100">
+                                            <img src={v.image} className="w-16 h-12 object-cover rounded-lg bg-neutral-200"/>
+                                            <div className="flex-1 min-w-0"><h4 className="text-xs font-bold text-vip-dark truncate">{v.name}</h4></div>
+                                            <button onClick={()=>{setEditingVehicle(v);setVehName(v.name);setVehImg(v.image);setVehDesc(v.description);setVehFile(null);}} className="p-2 text-vip-gold"><i className="fa-solid fa-pen"></i></button>
+                                            <button onClick={()=>deleteVehicle(v.id)} className="p-2 text-red-500"><i className="fa-solid fa-trash"></i></button>
+                                        </div>
+                                    ))}
+                           {vehicles.length === 0 && <p className="text-xs text-vip-muted text-center py-4">Henüz araç eklenmedi.</p>}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // ── ANA SAYFA ──
+
+        return (
+            <div className="min-h-screen flex flex-col pb-12" style={{backgroundColor:'#F8F9FA'}}>
+
+                <header style={{backgroundColor:'rgba(255,255,255,0.95)', borderBottom:'1px solid rgba(197,168,128,0.2)'}} className="py-5 px-4 text-center">
+                    <h1 className="text-xl font-black font-montserrat tracking-widest" style={{color:'#1E2229'}}>VIP <span style={{color:'#C5A880'}}>TRANSFER</span></h1>
+                </header>
+
+                <section className="hero-section py-20 px-4 text-center"
+                    style={{ minHeight:'80vh', display:'flex', alignItems:'center', justifyContent:'center'}}>
+                    <div className="max-w-2xl mx-auto space-y-6 w-full">
+                        <span style={{fontSize:'10px', border:'1px solid rgba(255,255,255,0.3)', color:'#FFFFFF', padding:'6px 16px', borderRadius:'9999px', fontWeight:'700', letterSpacing:'0.15em', textTransform:'uppercase', backgroundColor:'rgba(30,34,41,0.5)', backdropFilter:'blur(4px)'}}>
+                            Lüks & Güvenli Yolculuk Hizmeti
+                        </span>
+                        <h2 style={{fontSize:'clamp(2rem,6vw,3.5rem)', fontWeight:'900', fontFamily:'Montserrat,sans-serif', letterSpacing:'-0.02em', color:'#FFFFFF', textTransform:'uppercase', lineHeight:'1.1'}}>
+                            Konforlu Ulaşımın<br/>Kusursuz Adresi
+                        </h2>
+                        <div style={{width:'48px', height:'2px', backgroundColor:'#C5A880', margin:'0 auto', borderRadius:'2px'}}></div>
+                        <p style={{color:'#E2E8F0', fontSize:'13px', maxWidth:'400px', margin:'0 auto', lineHeight:'1.7', fontWeight: '500'}}>
+                            Şehir içi ve şehirler arası seyahatlerinizde, ultra lüks VIP tasarım araçlarımız ve profesyonel şoför kadromuzla hizmetinizdeyiz.
+                        </p>
+                        <div className="pt-2 flex flex-col sm:flex-row justify-center items-center gap-3 max-w-md mx-auto w-full px-2">
+                            <a href={`tel:${cleanPhone}`} style={{display:'flex', alignItems:'center', justifyContent:'center', gap:'8px', backgroundColor:'#FFFFFF', color:'#1E2229', fontWeight:'700', fontSize:'11px', letterSpacing:'0.1em', textTransform:'uppercase', padding:'16px 24px', borderRadius:'12px', width:'100%', textDecoration:'none', boxShadow:'0 4px 15px rgba(0,0,0,0.1)'}}>
+                                <i className="fa-solid fa-phone text-sm"></i> Hemen Ara
+                            </a>
+                            <a href={`whatsapp://send?phone=${cleanWhatsapp}`} style={{display:'flex', alignItems:'center', justifyContent:'center', gap:'8px', backgroundColor:'#25D366', color:'#FFFFFF', fontWeight:'700', fontSize:'11px', letterSpacing:'0.1em', textTransform:'uppercase', padding:'16px 24px', borderRadius:'12px', width:'100%', textDecoration:'none', boxShadow:'0 4px 15px rgba(37,211,102,0.3)'}}>
+                                <i className="fa-brands fa-whatsapp text-base"></i> WhatsApp Destek
+                            </a>
+                        </div>
+                    </div>
+                </section>
+
+                <section className="py-10 px-4 max-w-4xl mx-auto w-full">
+                    <div style={{backgroundColor:'#FFFFFF', border:'1px solid rgba(197,168,128,0.3)', boxShadow:'0 10px 30px rgba(0,0,0,0.03)', borderRadius:'16px', padding:'32px', textAlign:'center'}} className="space-y-4">
+                        <div style={{width:'64px', height:'64px', backgroundColor:'rgba(197,168,128,0.1)', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto'}}>
+                            <i className="fa-regular fa-calendar-check text-2xl" style={{color:'#C5A880'}}></i>
+                        </div>
+                        <h3 style={{fontSize:'18px', fontWeight:'700', fontFamily:'Montserrat,sans-serif', color:'#1E2229', letterSpacing:'0.05em'}}>Hemen Rezervasyon Yap</h3>
+                        <p style={{fontSize:'13px', color:'#6C757D', maxWidth:'400px', margin:'0 auto', lineHeight:'1.7', fontWeight:'500'}}>Şoförlü Araç Kiralama, Havalimanı ve Şehirlerarası VIP Transferleriniz İçin</p>
+                        <div className="pt-2">
+                            <a href={`whatsapp://send?phone=${cleanWhatsapp}&text=Merhaba,%20VIP%20transfer%20rezervasyonu%20yaptırmak%20istiyorum.`} style={{display:'inline-block', backgroundColor:'rgba(197,168,128,0.1)', border:'1px solid rgba(197,168,128,0.4)', color:'#A88F6B', fontWeight:'700', fontSize:'11px', letterSpacing:'0.12em', textTransform:'uppercase', padding:'14px 40px', borderRadius:'9999px', textDecoration:'none'}}>
+                                REZERVASYON
+                            </a>
+                        </div>
+                    </div>
+                </section>
+
+                <section className="py-14 max-w-5xl w-full mx-auto px-4" style={{borderTop:'1px solid rgba(197,168,128,0.15)'}}>
+                    <div className="text-center mb-10">
+                        <h2 style={{fontSize:'15px', fontWeight:'700', fontFamily:'Montserrat,sans-serif', letterSpacing:'0.15em', textTransform:'uppercase', color:'#1E2229'}}>HİZMETLERİMİZ</h2>
+                        <div style={{width:'32px', height:'2px', backgroundColor:'#C5A880', margin:'8px auto 0'}}></div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-5">
+                        {services.map((srv, idx) => (
+                            <div key={idx} style={{backgroundColor:'#FFFFFF', border:'1px solid rgba(197,168,128,0.2)', boxShadow:'0 10px 30px rgba(0,0,0,0.02)', borderRadius:'16px', padding:'24px', display:'flex', flexDirection:'column', alignItems:'center', textAlign:'center', gap:'12px'}}>
+                                <div style={{width:'48px', height:'48px', backgroundColor:'rgba(197,168,128,0.1)', color:'#C5A880', borderRadius:'12px', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'20px'}}>
+                                    <i className={`fa-solid ${srv.icon}`}></i>
+                                </div>
+                                <h3 style={{fontWeight:'700', fontFamily:'Montserrat,sans-serif', fontSize:'11px', color:'#1E2229', textTransform:'uppercase', letterSpacing:'0.08em'}}>{srv.title}</h3>
+                                <p style={{fontSize:'12px', color:'#6C757D', lineHeight:'1.7', fontWeight:'500'}}>{srv.desc}</p>
+                            </div>
+                        ))}
+                    </div>
+                </section>
+
+                <section className="py-10 px-4" style={{backgroundColor:'#FFFFFF', borderTop:'1px solid rgba(197,168,128,0.2)', borderBottom:'1px solid rgba(197,168,128,0.2)'}}>
+                    <div className="max-w-md mx-auto">
+                        <h3 style={{fontSize:'10px', fontWeight:'700', fontFamily:'Montserrat,sans-serif', letterSpacing:'0.2em', color:'#A88F6B', textTransform:'uppercase', textAlign:'center', marginBottom:'32px'}}>Neden Bizi Seçmelisiniz?</h3>
+                        <div className="space-y-3">
+                            {["Kurumsal Ulaşım Çözümleri","Genç ve Dinamik Personel Kadrosu","Son Model Ultra Lüks Araç Yelpazesi","7 / 24 Müşteri Desteği","Tam Zamanında Ulaşım","% 100 Memnuniyet Garantisi"].map((item, i) => (
+                                <div key={i} style={{display:'flex', alignItems:'center', gap:'16px', backgroundColor:'#F8F9FA', padding:'14px', borderRadius:'12px', border:'1px solid rgba(197,168,128,0.15)'}}>
+                                    <div style={{width:'28px', height:'28px', backgroundColor:'rgba(197,168,128,0.1)', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0}}>
+                                        <i className="fa-solid fa-check" style={{fontSize:'10px', color:'#C5A880'}}></i>
+                                    </div>
+                                    <span style={{fontSize:'13px', fontWeight:'600', color:'#4A5568'}}>{item}</span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </section>
+
+                <section className="py-14 max-w-5xl w-full mx-auto px-4">
+                    <div className="text-center mb-10">
+                        <h2 style={{fontSize:'15px', fontWeight:'700', fontFamily:'Montserrat,sans-serif', letterSpacing:'0.15em', textTransform:'uppercase', color:'#1E2229'}}>LÜKS ARAÇ FİLOMUZ</h2>
+                        <div style={{width:'32px', height:'2px', backgroundColor:'#C5A880', margin:'8px auto 0'}}></div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        {displayVehicles.length > 0 ? displayVehicles.map(v => (
+                            <div key={v.id} style={{backgroundColor:'#FFFFFF', border:'1px solid rgba(197,168,128,0.2)', boxShadow:'0 10px 30px rgba(0,0,0,0.03)', borderRadius:'16px', padding:'20px'}}>
+                                <div className="flex flex-col sm:flex-row gap-5 items-center">
+                                    <div style={{width:'100%', maxWidth:'180px', aspectRatio:'4/3', backgroundColor:'#F8F9FA', borderRadius:'12px', overflow:'hidden', flexShrink:0, border:'1px solid rgba(0,0,0,0.05)'}}>
+                                        <img src={v.image} style={{width:'100%', height:'100%', objectFit:'cover'}} alt={v.name} onError={e=>{e.target.src='https://images.unsplash.com/photo-1549399542-7e3f8b79c341?q=80&w=500'}}/>
+                                    </div>
+                                    <div className="space-y-3 flex-1">
+                                        <h3 style={{fontWeight:'700', fontFamily:'Montserrat,sans-serif', fontSize:'11px', color:'#1E2229', textTransform:'uppercase', letterSpacing:'0.08em', borderBottom:'1px solid rgba(197,168,128,0.2)', paddingBottom:'8px'}}>{v.name}</h3>
+                                        <ul className="space-y-2">
+                                            {v.description.split('\n').map((line, idx) => (
+                                                <li key={idx} style={{display:'flex', alignItems:'center', gap:'8px', fontSize:'12px', color:'#6C757D', fontWeight:'500'}}>
+                                                    <i className="fa-solid fa-circle" style={{fontSize:'5px', color:'#C5A880'}}></i> {line}
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        )) : (
+                            <div style={{gridColumn:'1/-1', textAlign:'center', padding:'40px', color:'#6C757D', fontSize:'13px', fontWeight:'500'}}>
+                                <i className="fa-solid fa-car" style={{fontSize:'32px', marginBottom:'12px', display:'block', color:'rgba(197,168,128,0.5)'}}></i>
+                                Araç filosu yakında güncellenecek.
+                            </div>
+                        )}
+                    </div>
+                </section>
+<section className="py-10 px-4 max-w-4xl mx-auto w-full">
+                    <div style={{backgroundColor:'#FFFFFF', border:'1px solid rgba(197,168,128,0.3)', boxShadow:'0 10px 30px rgba(0,0,0,0.03)', borderRadius:'16px', padding:'32px', textAlign:'center'}} className="space-y-4">
+                        <div style={{width:'64px', height:'64px', backgroundColor:'rgba(197,168,128,0.1)', borderRadius:'50%', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto'}}>
+                            <i className="fa-solid fa-phone-flip text-xl" style={{color:'#C5A880'}}></i>
+                        </div>
+                        <h3 style={{fontSize:'18px', fontWeight:'700', fontFamily:'Montserrat,sans-serif', color:'#1E2229', letterSpacing:'0.05em'}}>İletişime Geçin</h3>
+                        <p style={{fontSize:'13px', color:'#6C757D', maxWidth:'400px', margin:'0 auto', lineHeight:'1.7', fontWeight:'500'}}>Sormak İstediğiniz Tüm Sorular İçin Bir Telefon Uzağınızdayız</p>
+                        <div className="pt-2">
+                            <a href={`tel:${cleanPhone}`} style={{display:'inline-block', backgroundColor:'rgba(197,168,128,0.1)', border:'1px solid rgba(197,168,128,0.4)', color:'#A88F6B', fontWeight:'700', fontSize:'11px', letterSpacing:'0.12em', textTransform:'uppercase', padding:'14px 40px', borderRadius:'9999px', textDecoration:'none'}}>
+                                İLETİŞİM
+                            </a>
+                        </div>
+                    </div>
+                </section>
+
+                <footer className="mt-8 text-center">
+                    <p style={{fontSize:'10px', fontWeight:'700', color:'#6C757D', textTransform:'uppercase', letterSpacing:'0.2em'}}>
+                        © 2026 VIP TRANSFER. TÜM HAKLARI SAKLIDIR.
+                    </p>
+                </footer>
+            </div>
+        );
+    }
+
+    const container = document.getElementById('root');
+    const root = ReactDOM.createRoot(container);
+    root.render(<App />);
+</script>
+</body>
+</html>
